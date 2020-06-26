@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"net/http"
 	"os"
-
 	//"k8s.io/client-go/kubernetes"
 	//"k8s.io/client-go/rest"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 	v1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
+
+	"github.com/prometheus/common/expfmt"
 )
 
 // https://github.com/kubernetes/client-go/tree/master/examples
@@ -25,6 +28,8 @@ func main() {
 	if kubernetesEndpoint == "" {
 		kubernetesEndpoint = "localhost:8001"
 	}
+	kubeStateMetricsEndpoint := "http://" + kubernetesEndpoint + "/api/v1/namespaces/kube-system/services/kube-state-metrics:http-metrics/proxy/metrics"
+
 	config := rest.Config{
 		Host:                kubernetesEndpoint,
 		APIPath:             "",
@@ -70,6 +75,34 @@ func main() {
 	GatherResourceQuotas(kapi, ctx)
 	GatherComponentStatuses(kapi, ctx)
 	GatherEvents(kapi, ctx)
+	GatherKubeStateMetrics(kubeStateMetricsEndpoint)
+}
+
+func GatherKubeStateMetrics(endPoint string) {
+	fmt.Println("State Metrics ....")
+	resp, err := http.Get(endPoint)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	var parser expfmt.TextParser
+	expeditionPayload, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	for _, line := range expeditionPayload {
+		fmt.Printf("%s - %d\n", line.GetName(), line.GetType())
+		for _, metric := range line.Metric {
+			if line.GetType() == io_prometheus_client.MetricType_GAUGE {
+				fmt.Printf("\tGAUGE: %f\n", *metric.GetGauge().Value)
+			} else {
+				fmt.Printf("\tUNKNOWN METRIC Type: %d\n", *line.Type);
+			}
+			for _, label := range metric.Label {
+				fmt.Printf("\t\tLabel = %s - %s\n", *label.Name, *label.Value)
+			}
+		}
+	}
 }
 
 func GatherNodeInventory(api v1.CoreV1Interface, context context.Context) {
@@ -100,7 +133,6 @@ func GatherNodeInventory(api v1.CoreV1Interface, context context.Context) {
 		spew.Dump(node.Status.Images)
 		fmt.Println("Phase:")
 		spew.Dump(node.Status.Phase)
-
 	}
 }
 
