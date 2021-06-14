@@ -2,14 +2,22 @@ package main
 
 import (
 	"context"
+//	"flag"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	io_prometheus_client "github.com/prometheus/client_model/go"
+//	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+//	"k8s.io/client-go/tools/clientset"
+//	"k8s.io/client-go/util/homedir"
 	"net/http"
 	"os"
+//	"path/filepath"
+	"strings"
+//	"time"
+
 	//"k8s.io/client-go/kubernetes"
 	//"k8s.io/client-go/rest"
 
@@ -23,12 +31,48 @@ import (
 // https://github.com/kubernetes/client-go/tree/master/examples
 // https://github.com/kubernetes/client-go/tree/master/examples#configuration
 
+//func main() {
+//	var kubeconfig string = "./config"
+//	if home := homedir.HomeDir(); home != "" {
+//		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+//	} else {
+//		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+//	}
+//	//flag.Parse()
+//
+//	// use the current context in kubeconfig
+//
+//		// Examples for error handling:
+//		// - Use helper functions like e.g. errors.IsNotFound()
+//		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
+//		namespace := "default"
+//		pod := "example-xxxxx"
+//		_, err = clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
+//		if errors.IsNotFound(err) {
+//			fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
+//		} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
+//			fmt.Printf("Error getting pod %s in namespace %s: %v\n",
+//				pod, namespace, statusError.ErrStatus.Message)
+//		} else if err != nil {
+//			panic(err.Error())
+//		} else {
+//			fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
+//		}
+//
+//		time.Sleep(10 * time.Second)
+//	}
+//}
+
 func main() {
+	fmt.Printf("%q\n", strings.SplitAfterN("wordpress-39933f", "-", 2))
+	fmt.Printf("%q\n", strings.SplitAfterN("word-press-39933f", "-", 2))
+	fmt.Printf("%q\n", strings.Split("wordpress-39933f", "-"))
+	fmt.Printf("%q\n", strings.Split("word-press-39933f", "-"))
 	kubernetesEndpoint := os.Getenv("METRICS_TEST_ENDPOINT")
 	if kubernetesEndpoint == "" {
 		kubernetesEndpoint = "localhost:8001"
 	}
-	kubeStateMetricsEndpoint := "http://" + kubernetesEndpoint + "/api/v1/namespaces/kube-system/services/kube-state-metrics:http-metrics/proxy/metrics"
+	// kubeStateMetricsEndpoint := "http://" + kubernetesEndpoint + "/api/v1/namespaces/kube-system/services/kube-state-metrics:http-metrics/proxy/metrics"
 
 	config := rest.Config{
 		Host:                kubernetesEndpoint,
@@ -62,20 +106,22 @@ func main() {
 	kapi := kClientSet.CoreV1()
 	mapi := mClientSet.MetricsV1beta1()
 	ctx := context.TODO()
-	GatherNodeInventory(kapi, ctx)
-	GatherPodInventory(kapi, ctx)
-	GatherNamespaceInventory(kapi, ctx)
-	GatherServiceInventory(kapi, ctx)
 	GatherNodeMetrics(mapi, ctx)
 	GatherPodMetrics(mapi, ctx)
-	GatherPersistentVolumes(kapi, ctx)
-	GatherEndPoints(kapi, ctx)
-	GatherReplicationControllers(kapi, ctx)
-	GatherConfigMaps(kapi, ctx)
-	GatherResourceQuotas(kapi, ctx)
-	GatherComponentStatuses(kapi, ctx)
-	GatherEvents(kapi, ctx)
-	GatherKubeStateMetrics(kubeStateMetricsEndpoint)
+	if 1 == 1 {
+		GatherNodeInventory(kapi, ctx)
+		GatherPodInventory(kapi, ctx)
+		GatherNamespaceInventory(kapi, ctx)
+		GatherServiceInventory(kapi, ctx)
+		GatherPersistentVolumes(kapi, ctx)
+		GatherEndPoints(kapi, ctx)
+		GatherReplicationControllers(kapi, ctx)
+		GatherConfigMaps(kapi, ctx)
+		GatherResourceQuotas(kapi, ctx)
+		GatherComponentStatuses(kapi, ctx)
+		GatherEvents(kapi, ctx)
+		// GatherKubeStateMetrics(kubeStateMetricsEndpoint)
+	}
 }
 
 func GatherKubeStateMetrics(endPoint string) {
@@ -170,7 +216,6 @@ func GatherServiceInventory(api v1.CoreV1Interface, context context.Context) {
 }
 
 func GatherPersistentVolumes(api v1.CoreV1Interface, context context.Context) {
-	fmt.Println("Persistent Volumes Inventory ....")
 	volumes, _ := api.PersistentVolumes().List(context, metav1.ListOptions{})
 	for _, v := range volumes.Items {
 		fmt.Printf("volume = %s\n", v.Name)
@@ -237,6 +282,7 @@ func GatherNodeMetrics(api v1beta1.MetricsV1beta1Interface, context context.Cont
 		fmt.Println("\t", node.Usage.Memory())
 		fmt.Println("\t", node.Usage.Storage())
 		fmt.Println("\t", node.Usage.StorageEphemeral())
+		fmt.Println("\t", node.Usage.Pods())
 	}
 }
 
@@ -250,6 +296,7 @@ func GatherPodMetrics(api v1beta1.MetricsV1beta1Interface, context context.Conte
 			fmt.Println("\t\t", container.Usage.Memory().Value())
 			fmt.Println("\t\t", container.Usage.Storage().Value())
 			fmt.Println("\t\t", container.Usage.StorageEphemeral().Value())
+			fmt.Println("\t\t", container.Usage.Pods().Value())
 		}
 	}
 }
